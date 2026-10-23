@@ -1,0 +1,5 @@
+panel-plugin/cpu.cc
+panel-plugin/memswap.cc
+panel-plugin/systemload.cc
+panel-plugin/systemload.desktop.in
+panel-plugin/uptime.cc

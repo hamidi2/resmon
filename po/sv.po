@@ -1,0 +1,170 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# 
+# Translators:
+# Daniel Nylander <po@danielnylander.se>, 2006,2008
+# Luna Jernberg <bittin@cafe8bitar.se>, 2020-2021
+# Påvel Nicklasson <pavel2@frimix.se>, 2015,2018
+# Påvel Nicklasson <pavel@frimix.se>, 2015
+msgid ""
+msgstr ""
+"Project-Id-Version: Xfce Panel Plugins\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-01-30 00:54+0100\n"
+"PO-Revision-Date: 2022-01-29 23:54+0000\n"
+"Last-Translator: Luna Jernberg <bittin@cafe8bitar.se>\n"
+"Language-Team: Swedish (http://www.transifex.com/xfce/xfce-panel-plugins/language/sv/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: sv\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: ../panel-plugin/cpu.c:63
+msgid "File /proc/stat not found!"
+msgstr "Filen /proc/stat gick inte att hitta!"
+
+#: ../panel-plugin/systemload.c:217
+#, c-format
+msgid "System Load: %ld%%"
+msgstr "Systembelastning: %ld%%"
+
+#: ../panel-plugin/systemload.c:225
+#, c-format
+msgid "Memory: %ldMB of %ldMB used"
+msgstr "Minne: %ld MB av %ld MB använt"
+
+#: ../panel-plugin/systemload.c:233
+#, c-format
+msgid "Network: %ld Mbit/s"
+msgstr "Nätverk: %ld Mbit/s"
+
+#: ../panel-plugin/systemload.c:243
+#, c-format
+msgid "Swap: %ldMB of %ldMB used"
+msgstr "Växlingsutrymme: %ld MB av %ld MB använt"
+
+#: ../panel-plugin/systemload.c:246
+#, c-format
+msgid "No swap"
+msgstr "Inget växlingsutrymme"
+
+#: ../panel-plugin/systemload.c:261
+#, c-format
+msgid "%dd"
+msgstr "%dd"
+
+#: ../panel-plugin/systemload.c:262
+#, c-format
+msgid "%dh"
+msgstr "%dt"
+
+#: ../panel-plugin/systemload.c:263
+#, c-format
+msgid "%dm"
+msgstr "%dm"
+
+#: ../panel-plugin/systemload.c:265
+#, c-format
+msgid "%d day"
+msgid_plural "%d days"
+msgstr[0] "%d dag"
+msgstr[1] "%d dagar"
+
+#: ../panel-plugin/systemload.c:266
+#, c-format
+msgid "%d hour"
+msgid_plural "%d hours"
+msgstr[0] "%d timme"
+msgstr[1] "%d timmar"
+
+#: ../panel-plugin/systemload.c:267
+#, c-format
+msgid "%d minute"
+msgid_plural "%d minutes"
+msgstr[0] "%d minut"
+msgstr[1] "%d minuter"
+
+#: ../panel-plugin/systemload.c:274
+#, c-format
+msgid "Uptime: %s, %s, %s"
+msgstr "Uptid: %s,%s,%s"
+
+#: ../panel-plugin/systemload.c:750
+msgid "Label:"
+msgstr "Etikett:"
+
+#: ../panel-plugin/systemload.c:759
+msgid "Leave empty to disable the label"
+msgstr "Lämna tomt för att inaktivera etiketten"
+
+#: ../panel-plugin/systemload.c:800
+msgid "CPU monitor"
+msgstr "Processorövervakare"
+
+#: ../panel-plugin/systemload.c:801
+msgid "Memory monitor"
+msgstr "Minnesövervakare"
+
+#: ../panel-plugin/systemload.c:802
+msgid "Network monitor"
+msgstr "Nätverksövervakning"
+
+#: ../panel-plugin/systemload.c:803
+msgid "Swap monitor"
+msgstr "Övervaka växlingutrymme"
+
+#: ../panel-plugin/systemload.c:804
+msgid "Uptime monitor"
+msgstr "Upptidsövervakning"
+
+#: ../panel-plugin/systemload.c:815 ../panel-plugin/systemload.desktop.in.h:1
+msgid "System Load Monitor"
+msgstr "Övervaka systembelastning"
+
+#: ../panel-plugin/systemload.c:818
+msgid "_Close"
+msgstr "_Stäng"
+
+#: ../panel-plugin/systemload.c:819
+msgid "_Help"
+msgstr "_Hjälp"
+
+#: ../panel-plugin/systemload.c:837
+msgid "<b>General</b>"
+msgstr "<b>Allmänt</b>"
+
+#: ../panel-plugin/systemload.c:856
+msgid "Update interval:"
+msgstr "Uppdateringsintervall:"
+
+#: ../panel-plugin/systemload.c:862
+msgid ""
+"Update interval when running on battery (uses regular update interval if set"
+" to zero)"
+msgstr "Uppdateringsintervall vid batteridrift (använder vanliga uppdateringsintervall om satt till noll)"
+
+#: ../panel-plugin/systemload.c:873
+msgid "Power-saving interval:"
+msgstr "Strömsparintervall:"
+
+#: ../panel-plugin/systemload.c:880
+msgid "Launched when clicking on the plugin"
+msgstr "Startas vid klick på insticksprogrammet"
+
+#: ../panel-plugin/systemload.c:887
+msgid "System monitor:"
+msgstr "Systemövervakning:"
+
+#: ../panel-plugin/systemload.c:925 ../panel-plugin/systemload.desktop.in.h:2
+msgid "Monitor CPU load, swap usage and memory footprint"
+msgstr "Övervaka processorbelastning, användning av växlingsutrymme och minne"
+
+#: ../panel-plugin/systemload.c:927
+msgid "Copyright (c) 2003-2022\n"
+msgstr "Copyright (c) 2003-2022\n"
+
+#: ../panel-plugin/uptime.c:52
+msgid "File /proc/uptime not found!"
+msgstr "Filen /proc/uptime hittades inte!"

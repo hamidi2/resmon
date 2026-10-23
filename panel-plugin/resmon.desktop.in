@@ -1,0 +1,9 @@
+[Xfce Panel]
+Type=X-XFCE-PanelPlugin
+Encoding=UTF-8
+Name=Resource Monitor
+Comment=System load and network traffic monitor
+Icon=org.xfce.panel.systemload
+X-XFCE-Module=resmon
+X-XFCE-Internal=false
+X-XFCE-API=2.0
