@@ -127,6 +127,7 @@ static const SystemloadMonitor VISUAL_ORDER[] = {
 static gboolean setup_monitor_cb(gpointer user_data);
 static NetPlacement effective_net_placement (t_global_monitor *global);
 static void update_net_layout (t_global_monitor *global);
+static gboolean monitor_set_size (XfcePanelPlugin *plugin, int size, t_global_monitor *global);
 static GtkWidget *resmon_bar_new (const GdkRGBA *color);
 static void resmon_bar_set_fraction (GtkWidget *bar, gdouble fraction);
 static void resmon_bar_set_color (GtkWidget *bar, const GdkRGBA *color);
@@ -578,7 +579,7 @@ create_monitor (t_global_monitor *global)
                 GTK_STYLE_PROVIDER (lcss),
                 GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
             gtk_css_provider_load_from_data (lcss, "label { font-family: Monospace; }", -1, NULL);
-            gtk_label_set_width_chars (GTK_LABEL (net->value_label[d]), 11);
+            gtk_label_set_width_chars (GTK_LABEL (net->value_label[d]), 12);
             gtk_widget_set_valign (net->value_label[d], GTK_ALIGN_CENTER);
             gtk_widget_show(net->value_label[d]);
         }
@@ -853,6 +854,7 @@ static gboolean
 setup_monitor_cb(gpointer user_data)
 {
     auto global = (t_global_monitor*) user_data;
+    monitor_set_size (global->plugin, xfce_panel_plugin_get_size (global->plugin), global);
     setup_monitors (global);
     update_monitors (global);
     return TRUE;
