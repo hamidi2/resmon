@@ -80,5 +80,7 @@ const GdkRGBA     *systemload_config_get_net_color_in   (const SystemloadConfig 
 const GdkRGBA     *systemload_config_get_net_color_out  (const SystemloadConfig *config);
 bool               systemload_config_get_net_show_values(const SystemloadConfig *config);
 gint               systemload_config_get_net_digits     (const SystemloadConfig *config);
+const gchar       *systemload_config_get_net_label      (const SystemloadConfig *config);
+guint              systemload_config_get_net_bar_width  (const SystemloadConfig *config);
 
 #endif /* _XFCE_SYSTEMLOAD_SETTINGS_H_ */

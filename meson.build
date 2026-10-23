@@ -19,11 +19,15 @@ libxfce4panel = dependency('libxfce4panel-2.0')
 libxfce4ui = dependency('libxfce4ui-2')
 libxfce4util = dependency('libxfce4util-1.0')
 xfconf = dependency('libxfconf-0')
+upower_glib = dependency('upower-glib', required: false)
 libm = cc.find_library('m')
 
 prefix = get_option('prefix')
 localedir = prefix / get_option('localedir')
 
 add_project_arguments('-DGETTEXT_PACKAGE="resmon"', language: ['c', 'cpp'])
+if upower_glib.found()
+  add_project_arguments('-DHAVE_UPOWER_GLIB=1', language: ['c', 'cpp'])
+endif
 
 subdir('panel-plugin')
