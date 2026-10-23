@@ -125,6 +125,11 @@ static const SystemloadMonitor VISUAL_ORDER[] = {
 };
 
 static gboolean setup_monitor_cb(gpointer user_data);
+static NetPlacement effective_net_placement (t_global_monitor *global);
+static void update_net_layout (t_global_monitor *global);
+static GtkWidget *resmon_bar_new (const GdkRGBA *color);
+static void resmon_bar_set_fraction (GtkWidget *bar, gdouble fraction);
+static void resmon_bar_set_color (GtkWidget *bar, const GdkRGBA *color);
 
 
 
@@ -218,7 +223,7 @@ update_monitors(t_global_monitor *global)
         if (systemload_config_get_enabled (config, monitor))
         {
             gulong value = MIN(m->value_read, 100);
-            set_fraction(GTK_PROGRESS_BAR(global->monitor[i]->status), value / 100.0);
+            resmon_bar_set_fraction(global->monitor[i]->status, value / 100.0);
         }
     }
 
@@ -238,7 +243,7 @@ update_monitors(t_global_monitor *global)
                 gdouble frac = (max[d] > 0) ? (gdouble) rate[d] / (gdouble) max[d] : 0.0;
                 if (frac > 1.0) frac = 1.0;
                 if (frac < 0.0) frac = 0.0;
-                set_fraction(GTK_PROGRESS_BAR(net->status[d]), frac);
+                resmon_bar_set_fraction(net->status[d], frac);
             }
 
             if (systemload_config_get_net_show_values (config))
@@ -344,7 +349,10 @@ update_net_layout (t_global_monitor *global)
                                     vertical_stack ? GTK_ORIENTATION_VERTICAL
                                                    : GTK_ORIENTATION_HORIZONTAL);
 
-    /* detach both children from any previous parent */
+    /* detach both children from any previous parent (hold refs across the
+     * remove so the widgets survive the unparenting) */
+    g_object_ref (global->box);
+    g_object_ref (global->net.ebox);
     gtk_container_remove (GTK_CONTAINER (global->outer), global->box);
     if (gtk_widget_get_parent (global->net.ebox) == global->outer)
         gtk_container_remove (GTK_CONTAINER (global->outer), global->net.ebox);
@@ -355,7 +363,94 @@ update_net_layout (t_global_monitor *global)
 
     gtk_box_pack_start (GTK_BOX (global->outer), first, TRUE, TRUE, 0);
     gtk_box_pack_start (GTK_BOX (global->outer), second, TRUE, TRUE, 0);
+    g_object_unref (global->box);
+    g_object_unref (global->net.ebox);
 }
+
+
+/* ---- resmon custom progress bar ------------------------------------
+ * A minimal drawing-area based bar. GtkProgressBar carries an 82px minimum
+ * height for inverted vertical bars (GTK min-size quirk) that breaks the
+ * two-row layout, so we draw the bar ourselves: trough + colored fill. */
+#define RESMON_BAR_FRACTION "resmon-bar-fraction"
+#define RESMON_BAR_COLOR    "resmon-bar-color"
+
+static void
+resmon_bar_draw (GtkWidget *bar, cairo_t *cr)
+{
+    GtkAllocation alloc;
+    gtk_widget_get_allocation (bar, &alloc);
+    gdouble frac = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (bar), RESMON_BAR_FRACTION)) / 65535.0;
+    GdkRGBA *color = (GdkRGBA*) g_object_get_data (G_OBJECT (bar), RESMON_BAR_COLOR);
+    bool vertical = alloc.height >= alloc.width;
+
+    /* trough */
+    const GdkRGBA trough_color = { 0.55f, 0.55f, 0.55f, 0.45f };
+    gdk_cairo_set_source_rgba (cr, &trough_color);
+    cairo_rectangle (cr, 0, 0, alloc.width, alloc.height);
+    cairo_fill (cr);
+
+    /* progress */
+    if (color != NULL && frac > 0.0)
+    {
+        gdk_cairo_set_source_rgba (cr, color);
+        if (vertical)
+        {
+            gint fill_h = (gint) (alloc.height * frac + 0.5);
+            /* inverted: fill grows bottom-up */
+            cairo_rectangle (cr, 0, alloc.height - fill_h, alloc.width, fill_h);
+        }
+        else
+            cairo_rectangle (cr, 0, 0, (gint) (alloc.width * frac + 0.5), alloc.height);
+        cairo_fill (cr);
+    }
+}
+
+static gboolean
+resmon_bar_draw_cb (GtkWidget *bar, cairo_t *cr, gpointer user_data)
+{
+    resmon_bar_draw (bar, cr);
+    return TRUE;
+}
+
+static GtkWidget *
+resmon_bar_new (const GdkRGBA *color)
+{
+    GtkWidget *bar = gtk_drawing_area_new();
+    g_object_set_data (G_OBJECT (bar), RESMON_BAR_FRACTION, GUINT_TO_POINTER (0));
+    if (color != NULL)
+        g_object_set_data_full (G_OBJECT (bar), RESMON_BAR_COLOR,
+                                gdk_rgba_copy (color), (GDestroyNotify) gdk_rgba_free);
+    g_signal_connect (bar, "draw", G_CALLBACK (resmon_bar_draw_cb), NULL);
+    gtk_widget_show (bar);
+    return bar;
+}
+
+static void
+resmon_bar_set_fraction (GtkWidget *bar, gdouble fraction)
+{
+    if (fraction < 0.0) fraction = 0.0;
+    if (fraction > 1.0) fraction = 1.0;
+    /* 1/65535 granularity avoids redraws that change no pixels */
+    guint quant = (guint) (fraction * 65535.0 + 0.5);
+    if (GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (bar), RESMON_BAR_FRACTION)) == quant)
+        return;
+    g_object_set_data (G_OBJECT (bar), RESMON_BAR_FRACTION, GUINT_TO_POINTER (quant));
+    gtk_widget_queue_draw (bar);
+}
+
+static void
+resmon_bar_set_color (GtkWidget *bar, const GdkRGBA *color)
+{
+    GdkRGBA *copy = gdk_rgba_copy (color);
+    GdkRGBA *old = (GdkRGBA*) g_object_steal_data (G_OBJECT (bar), RESMON_BAR_COLOR);
+    if (old != NULL)
+        gdk_rgba_free (old);
+    g_object_set_data_full (G_OBJECT (bar), RESMON_BAR_COLOR, copy, (GDestroyNotify) gdk_rgba_free);
+    gtk_widget_queue_draw (bar);
+}
+
+/* ---- end custom bar ------------------------------------------------- */
 
 static void
 monitor_update_orientation (XfcePanelPlugin  *plugin,
@@ -372,9 +467,6 @@ monitor_update_orientation (XfcePanelPlugin  *plugin,
         gtk_orientable_set_orientation(GTK_ORIENTABLE(global->monitor[count]->box), panel_orientation);
         gtk_label_set_angle(GTK_LABEL(global->monitor[count]->label),
                             (orientation == GTK_ORIENTATION_HORIZONTAL) ? 0 : -90);
-        gtk_progress_bar_set_inverted (GTK_PROGRESS_BAR(global->monitor[count]->status), (panel_orientation == GTK_ORIENTATION_HORIZONTAL));
-        gtk_orientable_set_orientation (GTK_ORIENTABLE(global->monitor[count]->status),
-                                        (panel_orientation == GTK_ORIENTATION_HORIZONTAL) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL);
     }
     gtk_label_set_angle(GTK_LABEL(global->uptime.label),
                         (orientation == GTK_ORIENTATION_HORIZONTAL) ? 0 : -90);
@@ -384,10 +476,6 @@ monitor_update_orientation (XfcePanelPlugin  *plugin,
         t_netmon *net = &global->net;
         for (int d = 0; d < 2; d++)
         {
-            gtk_progress_bar_set_inverted (GTK_PROGRESS_BAR(net->status[d]),
-                                           (panel_orientation == GTK_ORIENTATION_HORIZONTAL));
-            gtk_orientable_set_orientation (GTK_ORIENTABLE(net->status[d]),
-                                            (panel_orientation == GTK_ORIENTATION_HORIZONTAL) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL);
             gtk_label_set_angle (GTK_LABEL (net->value_label[d]),
                                  (orientation == GTK_ORIENTATION_HORIZONTAL) ? 0 : -90);
         }
@@ -413,21 +501,7 @@ create_monitor (t_global_monitor *global)
 
         m->label = gtk_label_new (systemload_config_get_label (config, monitor));
 
-        m->status = GTK_WIDGET(gtk_progress_bar_new());
-#if GTK_CHECK_VERSION (3, 16, 0)
-        GtkCssProvider *css_provider = gtk_css_provider_new ();
-        gtk_style_context_add_provider (
-            GTK_STYLE_CONTEXT (gtk_widget_get_style_context (GTK_WIDGET (m->status))),
-            GTK_STYLE_PROVIDER (css_provider),
-            GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-        gtk_css_provider_load_from_data (css_provider, "\
-            progressbar.horizontal trough { min-height: 4px; }\
-            progressbar.horizontal progress { min-height: 4px; }\
-            progressbar.vertical trough { min-width: 4px; }\
-            progressbar.vertical progress { min-width: 4px; }",
-             -1, NULL);
-        g_object_set_data(G_OBJECT(m->status), "css_provider", css_provider);
-#endif
+        m->status = resmon_bar_new (systemload_config_get_color (config, monitor));
 
         m->box = gtk_box_new(xfce_panel_plugin_get_orientation(global->plugin), 0);
 
@@ -443,6 +517,7 @@ create_monitor (t_global_monitor *global)
         gtk_widget_show(GTK_WIDGET(m->status));
 
         gtk_box_pack_start(GTK_BOX(m->box), GTK_WIDGET(m->status), FALSE, FALSE, 0);
+        gtk_widget_set_valign(GTK_WIDGET(m->ebox), GTK_ALIGN_CENTER);
         gtk_box_pack_start(GTK_BOX(global->box), GTK_WIDGET(m->ebox), FALSE, FALSE, 0);
 
         gtk_widget_show_all(GTK_WIDGET(m->ebox));
@@ -459,6 +534,7 @@ create_monitor (t_global_monitor *global)
     gtk_container_add(GTK_CONTAINER(global->uptime.ebox),
                       GTK_WIDGET(global->uptime.label));
 
+    gtk_widget_set_valign(GTK_WIDGET(global->uptime.ebox), GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(global->box),
                        GTK_WIDGET(global->uptime.ebox),
                        FALSE, FALSE, 0);
@@ -466,11 +542,10 @@ create_monitor (t_global_monitor *global)
     /* --- resmon network section --- */
     {
         t_netmon *net = &global->net;
-        const gchar *base_css =
-            "progressbar.horizontal trough { min-height: 4px; }"
-            "progressbar.horizontal progress { min-height: 4px; }"
-            "progressbar.vertical trough { min-width: 4px; }"
-            "progressbar.vertical progress { min-width: 4px; }";
+        const GdkRGBA *colors_default[2] = {
+            systemload_config_get_net_color_in (config),
+            systemload_config_get_net_color_out (config),
+        };
 
         net->ebox = gtk_event_box_new();
         gtk_event_box_set_visible_window(GTK_EVENT_BOX(net->ebox), FALSE);
@@ -481,19 +556,15 @@ create_monitor (t_global_monitor *global)
 
         for (int d = 0; d < 2; d++)
         {
-            net->status[d] = GTK_WIDGET(gtk_progress_bar_new());
-            net->css[d] = gtk_css_provider_new ();
-            gtk_style_context_add_provider (
-                GTK_STYLE_CONTEXT (gtk_widget_get_style_context (GTK_WIDGET (net->status[d]))),
-                GTK_STYLE_PROVIDER (net->css[d]),
-                GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-            gtk_css_provider_load_from_data (net->css[d], base_css, -1, NULL);
+            net->status[d] = resmon_bar_new (colors_default[d]);
 
             net->value_label[d] = gtk_label_new("");
 
-            net->col[d] = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-            /* bar fills the available height, the value label sits under it */
-            gtk_box_pack_start(GTK_BOX(net->col[d]), net->status[d], TRUE, TRUE, 0);
+            /* netload-style column: narrow bar filling the section height,
+             * the byte/s value label beside it */
+            net->col[d] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+            gtk_widget_set_valign (net->value_label[d], GTK_ALIGN_CENTER);
+            gtk_box_pack_start(GTK_BOX(net->col[d]), net->status[d], FALSE, FALSE, 0);
             gtk_box_pack_start(GTK_BOX(net->col[d]), net->value_label[d], FALSE, FALSE, 0);
             gtk_box_pack_start(GTK_BOX(net->bars_box), net->col[d], FALSE, FALSE, 0);
 
@@ -543,7 +614,22 @@ monitor_control_new(XfcePanelPlugin *plugin)
      * (stacked "below" for a two-row panel, "right" for a single row) */
     {
         XfconfChannel *panel_channel = xfconf_channel_get ("xfce4-panel");
-        gint nrows = xfconf_channel_get_int (panel_channel, "/panels/panel-1/nrows", 1);
+        gint nrows = 1;
+        GValue value = G_VALUE_INIT;
+
+        /* the property is stored as uint; xfconf_channel_get_int() refuses
+         * a type mismatch, so go through the generic getter */
+        g_value_init (&value, G_TYPE_UINT);
+        if (xfconf_channel_get_property (panel_channel, "/panels/panel-1/nrows", &value))
+            nrows = (gint) g_value_get_uint (&value);
+        else
+        {
+            g_value_unset (&value);
+            g_value_init (&value, G_TYPE_INT);
+            if (xfconf_channel_get_property (panel_channel, "/panels/panel-1/nrows", &value))
+                nrows = g_value_get_int (&value);
+        }
+        g_value_unset (&value);
         global->panel_nrows = MAX(nrows, 1);
 
         if (!systemload_config_has_net_placement_key (global->config))
@@ -690,27 +776,7 @@ setup_monitors(t_global_monitor *global)
 
         color = systemload_config_get_color (config, monitor);
         if (G_LIKELY (color != NULL))
-        {
-#if GTK_CHECK_VERSION (3, 16, 0)
-            gchar *color_str = gdk_rgba_to_string(color);
-            gchar *css;
-#if GTK_CHECK_VERSION (3, 20, 0)
-            css = g_strdup_printf("progressbar progress { background-color: %s; background-image: none; border-color: %s; }",
-                                  color_str, color_str);
-#else
-            css = g_strdup_printf(".progressbar progress { background-color: %s; background-image: none; }", color);
-#endif
-            gtk_css_provider_load_from_data (
-                (GtkCssProvider*) g_object_get_data(G_OBJECT(m->status), "css_provider"),
-                css, strlen(css), NULL);
-            g_free(color_str);
-            g_free(css);
-#else
-            gtk_widget_override_background_color(m->status, GTK_STATE_FLAG_PRELIGHT, color);
-            gtk_widget_override_background_color(m->status, GTK_STATE_FLAG_SELECTED, color);
-            gtk_widget_override_color(m->status, GTK_STATE_FLAG_SELECTED, color);
-#endif
-        }
+            resmon_bar_set_color (m->status, color);
 
         if (systemload_config_get_enabled (config, monitor))
         {
@@ -730,6 +796,31 @@ setup_monitors(t_global_monitor *global)
     }
 
     /* resmon network section: visibility + colors + layout */
+    {
+        static int dbg_count = 0;
+        if (dbg_count++ % 20 == 5)
+        {
+            GtkAllocation ae, ao, ab, an, am;
+            gtk_widget_get_allocation (global->ebox, &ae);
+            gtk_widget_get_allocation (global->outer, &ao);
+            gtk_widget_get_allocation (global->box, &ab);
+            gtk_widget_get_allocation (global->net.ebox, &an);
+            gtk_widget_get_allocation (global->monitor[CPU_MONITOR]->ebox, &am);
+            GtkAllocation as, al;
+            gtk_widget_get_allocation (global->monitor[CPU_MONITOR]->status, &as);
+            gtk_widget_get_allocation (global->monitor[CPU_MONITOR]->label, &al);
+            GtkRequisition mn, nt;
+            gtk_widget_get_preferred_height (global->monitor[CPU_MONITOR]->status, &mn.height, &nt.height);
+            g_warning ("resmon-alloc: ebox=%dx%d outer=%dx%d sysbox=%dx%d net=%dx%d cpuebox=%dx%d bar=%dx%d label=%dx%d barminh=%d barnath=%d uselabel=%d labelvisible=%d nrows=%u place=%d",
+                       ae.width, ae.height, ao.width, ao.height, ab.width, ab.height,
+                       an.width, an.height, am.width, am.height, as.width, as.height,
+                       al.width, al.height, mn.height, nt.height,
+                       (int) systemload_config_get_use_label (config, CPU_MONITOR),
+                       gtk_widget_get_visible (global->monitor[CPU_MONITOR]->label),
+                       global->panel_nrows, (int) effective_net_placement (global));
+        }
+    }
+
     if (systemload_config_get_enabled (config, NET_MONITOR))
     {
         t_netmon *net = &global->net;
@@ -741,15 +832,7 @@ setup_monitors(t_global_monitor *global)
         for (int d = 0; d < 2; d++)
         {
             if (colors[d] != NULL)
-            {
-                gchar *color_str = gdk_rgba_to_string (colors[d]);
-                gchar *css = g_strdup_printf (
-                    "progressbar progress { background-color: %s; background-image: none; border-color: %s; }",
-                    color_str, color_str);
-                gtk_css_provider_load_from_data (net->css[d], css, -1, NULL);
-                g_free (color_str);
-                g_free (css);
-            }
+                resmon_bar_set_color (net->status[d], colors[d]);
             gtk_widget_set_visible (net->value_label[d],
                                     systemload_config_get_net_show_values (config));
         }
@@ -808,9 +891,12 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
      * side-by-side = both span the full panel height (netload-like);
      * stacked = split by panel rows (sysload one row, net the rest) */
     {
-        bool stacked;
-        int sys_h, net_h;
         guint nrows = MAX(global->panel_nrows, 1);
+        /* the panel passes the FULL plugin height (all rows) for non-small
+         * plugins; sysload keeps one row, the network section takes the rest */
+        int total = size;
+        int sys_h, net_h;
+        bool stacked;
 
         switch (effective_net_placement (global))
         {
@@ -823,45 +909,50 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
                 break;
         }
 
-        if (xfce_panel_plugin_get_orientation (plugin) == GTK_ORIENTATION_HORIZONTAL)
+        if (stacked)
         {
-            if (stacked)
+            sys_h = total / nrows;
+            net_h = total - sys_h;
+            if (net_h < 8)
             {
-                sys_h = size / nrows;
-                net_h = size - sys_h;
-                if (net_h < 8)
-                {
-                    net_h = 8;
-                    sys_h = size - net_h;
-                }
+                net_h = 8;
+                sys_h = total - net_h;
             }
-            else
-            {
-                sys_h = size;
-                net_h = size;
-            }
-            gtk_widget_set_size_request (global->box, -1, sys_h);
-            gtk_widget_set_size_request (global->net.ebox, -1, net_h);
         }
         else
         {
-            if (stacked)
+            sys_h = total;
+            net_h = total;
+        }
+
+        if (xfce_panel_plugin_get_orientation (plugin) == GTK_ORIENTATION_HORIZONTAL)
+        {
+            gtk_widget_set_size_request (global->ebox, -1, total);
+            gtk_widget_set_size_request (global->box, -1, sys_h);
+            gtk_widget_set_size_request (global->net.ebox, -1, net_h);
+            for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
             {
-                sys_h = size / nrows;
-                net_h = size - sys_h;
-                if (net_h < 8)
-                {
-                    net_h = 8;
-                    sys_h = size - net_h;
-                }
+                if ((SystemloadMonitor) i == NET_MONITOR)
+                    continue;
+                gtk_widget_set_size_request (global->monitor[i]->status, 8, sys_h - 6);
             }
-            else
-            {
-                sys_h = size;
-                net_h = size;
-            }
+            for (int d = 0; d < 2; d++)
+                gtk_widget_set_size_request (global->net.status[d], 8, net_h - 6);
+        }
+        else
+        {
+            gtk_widget_set_size_request (global->ebox, total, -1);
             gtk_widget_set_size_request (global->box, sys_h, -1);
             gtk_widget_set_size_request (global->net.ebox, net_h, -1);
+            for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+            {
+                if ((SystemloadMonitor) i == NET_MONITOR)
+                    continue;
+                gtk_widget_set_size_request (global->monitor[i]->status, sys_h - 6, 8);
+            }
+            for (int d = 0; d < 2; d++)
+                gtk_widget_set_size_request (global->net.status[d],
+                                             net_h - (systemload_config_get_net_show_values (global->config) ? 18 : 6), 8);
         }
     }
 
@@ -878,11 +969,10 @@ monitor_set_mode (XfcePanelPlugin *plugin, XfcePanelPluginMode mode, t_global_mo
   GtkOrientation orientation = (mode == XFCE_PANEL_PLUGIN_MODE_VERTICAL) ?
     GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
 
-  /* Set small in all modes except deskbar mode */
-  if (mode == XFCE_PANEL_PLUGIN_MODE_DESKBAR)
-      xfce_panel_plugin_set_small(XFCE_PANEL_PLUGIN(plugin), FALSE);
-  else
-      xfce_panel_plugin_set_small(XFCE_PANEL_PLUGIN(plugin), TRUE);
+  /* resmon always spans the full panel height (like netload), so the
+   * panel must not shrink it to a single row */
+  (void) mode;
+  xfce_panel_plugin_set_small(XFCE_PANEL_PLUGIN(plugin), FALSE);
 
   monitor_update_orientation (plugin, panel_orientation, orientation, global);
   monitor_set_size (plugin, xfce_panel_plugin_get_size (plugin), global);
