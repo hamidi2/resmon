@@ -587,15 +587,15 @@ create_monitor (t_global_monitor *global)
             gtk_widget_set_valign (net->value_label[d], GTK_ALIGN_CENTER);
             gtk_widget_show(net->value_label[d]);
         }
-        /* incoming value hugs the bars from the left, outgoing from the right */
+        /* both right-aligned: the decimal point stays in a fixed column
+         * ("%.1f U" always ends with digit + unit) */
         gtk_label_set_xalign (GTK_LABEL (net->value_label[0]), 1.0);
-        gtk_label_set_xalign (GTK_LABEL (net->value_label[1]), 0.0);
+        gtk_label_set_xalign (GTK_LABEL (net->value_label[1]), 1.0);
 
         net->label = gtk_label_new ("");
         gtk_widget_set_valign (net->label, GTK_ALIGN_CENTER);
-        /* the device name rides at the end of the sysload row above */
-        gtk_widget_set_margin_start (net->label, 6);
-        gtk_box_pack_start(GTK_BOX(global->box), net->label, FALSE, FALSE, 0);
+        /* the device name belongs to the network row itself */
+        gtk_box_pack_start(GTK_BOX(net->box), net->label, FALSE, FALSE, 0);
 
         gtk_box_pack_start(GTK_BOX(net->box), net->value_label[0], FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(net->box), net->bars_box, FALSE, FALSE, 0);
@@ -843,9 +843,9 @@ setup_monitors(t_global_monitor *global)
 
         gtk_widget_set_visible (net->label, net_label_visible);
 
-        /* user-adjustable gaps: between the bars and around the values */
+        /* gaps between bars/values follow "Bar spacing" (applied in
+         * monitor_set_size so all bars share one system) */
         gint spacing = (gint) systemload_config_get_net_bar_spacing (config);
-        gtk_box_set_spacing (GTK_BOX (net->bars_box), spacing);
         gtk_box_set_spacing (GTK_BOX (net->box), spacing);
 
         /* same 6px breathing room as the sysload monitors (stock look) */
@@ -900,10 +900,20 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         }
     }
 
-    /* network bars: width from the configuration (sysload bars stay 8px) */
+    /* ONE sizing system for every bar (sysload + network): the "Bar width"
+     * setting controls the thickness of all of them */
     {
         bool horizontal_panel = (xfce_panel_plugin_get_orientation (plugin) == GTK_ORIENTATION_HORIZONTAL);
         gint bar_w = (gint) systemload_config_get_net_bar_width (global->config);
+        for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+        {
+            if ((SystemloadMonitor) i == NET_MONITOR)
+                continue;
+            if (horizontal_panel)
+                gtk_widget_set_size_request (global->monitor[i]->status, bar_w, -1);
+            else
+                gtk_widget_set_size_request (global->monitor[i]->status, -1, bar_w);
+        }
         for (int d = 0; d < 2; d++)
         {
             if (horizontal_panel)
@@ -911,6 +921,20 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
             else
                 gtk_widget_set_size_request (global->net.status[d], -1, bar_w);
         }
+
+        /* same gap everywhere: space between sysload monitors and inside
+         * the network section both follow "Bar spacing" (>=2 so bars never
+         * visually merge) */
+        gint spacing = MAX ((gint) systemload_config_get_net_bar_spacing (global->config), 2);
+        for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+        {
+            if ((SystemloadMonitor) i == NET_MONITOR)
+                continue;
+            gtk_widget_set_margin_end (global->monitor[i]->ebox, spacing);
+            gtk_widget_set_margin_start (global->monitor[i]->ebox, 0);
+        }
+        gtk_widget_set_margin_end (global->uptime.ebox, spacing);
+        gtk_widget_set_margin_start (global->uptime.ebox, 0);
     }
 
     /* height share between the sysload part and the network section:
@@ -1436,9 +1460,9 @@ monitor_show_about(XfcePanelPlugin *plugin, t_global_monitor *global)
       "logo-icon-name", "org.xfce.panel.systemload",
       "license", xfce_get_license_text (XFCE_LICENSE_TEXT_BSD),
       "version", PACKAGE_VERSION,
-      "program-name", PACKAGE_NAME,
-      "comments", _("Monitor CPU load, swap usage and memory footprint"),
-      "website", "https://docs.xfce.org/panel-plugins/xfce4-systemload-plugin/start",
+      "program-name", "resmon",
+      "comments", _("System load and network traffic monitor\n"
+                    "Based on xfce4-systemload-plugin 1.3.2 and xfce4-netload-plugin"),
       "copyright", _("Copyright (c) 2003-2022\n"),
       "authors", auth, NULL);
 }

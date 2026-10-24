@@ -19,10 +19,12 @@
 
 #include "network.h"
 
-/* netload.c constants for the Auto_Max algorithm */
+/* netload.c constants for the Auto_Max algorithm and the moving average */
 #define INIT_MAX 4096
 #define MINIMAL_MAX 1024
 #define SHRINK_MAX 0.75
+#define HISTSIZE_CALCULATE 4
+#define HISTSIZE_STORE 20
 
 static const char *const PROC_NET_NETSTAT = "/proc/net/netstat";
 static const char *const PROC_NET_DEV = "/proc/net/dev";
@@ -201,6 +203,9 @@ read_net_rates (NetSource source, const gchar *device, NetData *net)
     static guint64 last_time;
     static gchar last_iface[64] = "";
     static gboolean have_prev = FALSE;
+    /* netload-style moving averages over the last 4 measures */
+    static gulong hist[2][HISTSIZE_STORE] = {{0}};
+    static gint hist_pos = 0;
 
     guint64 in = 0, out = 0;
     gchar *auto_dev = NULL;
@@ -255,6 +260,7 @@ read_net_rates (NetSource source, const gchar *device, NetData *net)
         last_time = now;
         g_snprintf (last_iface, sizeof (last_iface), "%s", net->iface);
         have_prev = TRUE;
+        memset (hist, 0, sizeof (hist));
         net->in_bps = 0;
         net->out_bps = 0;
         return 0;
@@ -278,8 +284,20 @@ read_net_rates (NetSource source, const gchar *device, NetData *net)
                  && net->max_out > MINIMAL_MAX)
             net->max_out = (gulong) ((gdouble) net->max_out * SHRINK_MAX);
 
-        net->in_bps = rin_bps;
-        net->out_bps = rout_bps;
+        /* moving average like netload: smooths bursts, matches netload's
+         * displayed numbers with the same update interval */
+        hist[0][hist_pos] = rin_bps;
+        hist[1][hist_pos] = rout_bps;
+        hist_pos = (hist_pos + 1) % HISTSIZE_STORE;
+        guint64 sum_in = 0, sum_out = 0;
+        for (gint j = 0; j < HISTSIZE_CALCULATE; j++)
+        {
+            gint idx = (hist_pos + HISTSIZE_STORE - 1 - j) % HISTSIZE_STORE;
+            sum_in += hist[0][idx];
+            sum_out += hist[1][idx];
+        }
+        net->in_bps = (gulong) (sum_in / HISTSIZE_CALCULATE);
+        net->out_bps = (gulong) (sum_out / HISTSIZE_CALCULATE);
     }
 
     bytes[0] = in;
@@ -307,7 +325,7 @@ format_rate_short (gulong bytes_per_sec, gboolean as_bits)
         if (v >= 1000.0) { v /= 1000.0; unit = "M"; }
         if (v >= 1000.0) { v /= 1000.0; unit = "G"; }
         if (v >= 1000.0) { v /= 1000.0; unit = "T"; }
-        g_snprintf (buf, sizeof (buf), "%.1f%sb", v, unit);
+        g_snprintf (buf, sizeof (buf), "%.1f %sb", v, unit);
     }
     else
     {
@@ -316,7 +334,7 @@ format_rate_short (gulong bytes_per_sec, gboolean as_bits)
         if (v >= 1024.0) { v /= 1024.0; unit = "M"; }
         if (v >= 1024.0) { v /= 1024.0; unit = "G"; }
         if (v >= 1024.0) { v /= 1024.0; unit = "T"; }
-        g_snprintf (buf, sizeof (buf), "%.1f%s", v, unit);
+        g_snprintf (buf, sizeof (buf), "%.1f %s", v, unit);
     }
     return g_strdup (buf);
 }
