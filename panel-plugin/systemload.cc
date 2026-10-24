@@ -107,6 +107,7 @@ struct t_global_monitor {
     guint             timeout, timeout_seconds;
     bool              use_timeout_seconds;
     guint             timeout_id;
+    guint             setup_idle_id;
     t_command         command;
     t_monitor         *monitor[4];
     t_uptime_monitor  uptime;
@@ -249,14 +250,19 @@ update_monitors(t_global_monitor *global)
 
             if (systemload_config_get_net_show_values (config))
             {
-                gint digits = systemload_config_get_net_digits (config);
+                gboolean as_bits = systemload_config_get_net_as_bits (config);
                 for (int d = 0; d < 2; d++)
                 {
-                    gchar *text = format_rate_humanreadable (rate[d], digits);
+                    gchar *text = format_rate_short (rate[d], as_bits);
                     set_label_text(GTK_LABEL(net->value_label[d]), text);
                     g_free (text);
                 }
             }
+
+            /* live device name in the sysload row */
+            if (systemload_config_get_net_show_label (config))
+                set_label_text (GTK_LABEL (net->label),
+                                net->data.iface[0] ? net->data.iface : "");
 
             gchar tooltip[256];
             gchar *in_s = format_rate_humanreadable (rate[0], 2);
@@ -349,6 +355,9 @@ update_net_layout (t_global_monitor *global)
     gtk_orientable_set_orientation (GTK_ORIENTABLE (global->outer),
                                     vertical_stack ? GTK_ORIENTATION_VERTICAL
                                                    : GTK_ORIENTATION_HORIZONTAL);
+    /* stacked: center the sysload row over the (wider) network row */
+    gtk_widget_set_halign (global->box,
+                           vertical_stack ? GTK_ALIGN_CENTER : GTK_ALIGN_FILL);
 
     /* detach both children from any previous parent (hold refs across the
      * remove so the widgets survive the unparenting) */
@@ -573,13 +582,8 @@ create_monitor (t_global_monitor *global)
          * anything (nor the sysload row above, via plugin re-centering). */
         for (int d = 0; d < 2; d++)
         {
-            GtkCssProvider *lcss = gtk_css_provider_new ();
-            gtk_style_context_add_provider (
-                GTK_STYLE_CONTEXT (gtk_widget_get_style_context (net->value_label[d])),
-                GTK_STYLE_PROVIDER (lcss),
-                GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-            gtk_css_provider_load_from_data (lcss, "label { font-family: Monospace; }", -1, NULL);
-            gtk_label_set_width_chars (GTK_LABEL (net->value_label[d]), 12);
+            /* panel default font; fixed width keeps the layout steady */
+            gtk_label_set_width_chars (GTK_LABEL (net->value_label[d]), 6);
             gtk_widget_set_valign (net->value_label[d], GTK_ALIGN_CENTER);
             gtk_widget_show(net->value_label[d]);
         }
@@ -587,10 +591,12 @@ create_monitor (t_global_monitor *global)
         gtk_label_set_xalign (GTK_LABEL (net->value_label[0]), 1.0);
         gtk_label_set_xalign (GTK_LABEL (net->value_label[1]), 0.0);
 
-        net->label = gtk_label_new (systemload_config_get_net_label (config));
+        net->label = gtk_label_new ("");
         gtk_widget_set_valign (net->label, GTK_ALIGN_CENTER);
+        /* the device name rides at the end of the sysload row above */
+        gtk_widget_set_margin_start (net->label, 6);
+        gtk_box_pack_start(GTK_BOX(global->box), net->label, FALSE, FALSE, 0);
 
-        gtk_box_pack_start(GTK_BOX(net->box), net->label, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(net->box), net->value_label[0], FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(net->box), net->bars_box, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(net->box), net->value_label[1], FALSE, FALSE, 0);
@@ -694,6 +700,8 @@ monitor_free(XfcePanelPlugin *plugin, t_global_monitor *global)
 
     if (global->timeout_id)
         g_source_remove(global->timeout_id);
+    if (global->setup_idle_id)
+        g_source_remove(global->setup_idle_id);
 
     g_free(global->command.command_text);
 
@@ -805,7 +813,7 @@ setup_monitors(t_global_monitor *global)
 
             gtk_widget_show_all(GTK_WIDGET(m->ebox));
             gtk_widget_set_visible (m->label, label_visible);
-            set_margin (global, m->ebox, (n_enabled_labels == 0) ? 0 : 6);
+            set_margin (global, m->ebox, 6);
         }
     }
 
@@ -823,8 +831,7 @@ setup_monitors(t_global_monitor *global)
             systemload_config_get_net_color_in (config),
             systemload_config_get_net_color_out (config),
         };
-        const gchar *net_label_text = systemload_config_get_net_label (config);
-        bool net_label_visible = strlen (net_label_text) != 0;
+        bool net_label_visible = systemload_config_get_net_show_label (config);
 
         for (int d = 0; d < 2; d++)
         {
@@ -834,13 +841,16 @@ setup_monitors(t_global_monitor *global)
                                     systemload_config_get_net_show_values (config));
         }
 
-        gtk_label_set_text (GTK_LABEL (net->label), net_label_text);
         gtk_widget_set_visible (net->label, net_label_visible);
 
-        /* margin symmetric with the sysload row: only when SOME label is
-         * shown anywhere, so both rows stay flush at the left otherwise */
+        /* user-adjustable gaps: between the bars and around the values */
+        gint spacing = (gint) systemload_config_get_net_bar_spacing (config);
+        gtk_box_set_spacing (GTK_BOX (net->bars_box), spacing);
+        gtk_box_set_spacing (GTK_BOX (net->box), spacing);
+
+        /* same 6px breathing room as the sysload monitors (stock look) */
         gtk_widget_show (net->ebox);
-        set_margin (global, net->ebox, (n_enabled_labels == 0 && !net_label_visible) ? 0 : 6);
+        set_margin (global, net->ebox, 6);
     }
     else
         gtk_widget_hide (global->net.ebox);
@@ -851,12 +861,24 @@ setup_monitors(t_global_monitor *global)
 }
 
 static gboolean
-setup_monitor_cb(gpointer user_data)
+setup_monitor_idle_cb (gpointer user_data)
 {
     auto global = (t_global_monitor*) user_data;
+    global->setup_idle_id = 0;
     monitor_set_size (global->plugin, xfce_panel_plugin_get_size (global->plugin), global);
     setup_monitors (global);
     update_monitors (global);
+    return G_SOURCE_REMOVE;
+}
+
+/* configuration-changed can arrive inside a GTK signal emission (dialog
+ * bindings) - mutating the widget tree there crashes; defer to idle */
+static gboolean
+setup_monitor_cb(gpointer user_data)
+{
+    auto global = (t_global_monitor*) user_data;
+    if (global->setup_idle_id == 0)
+        global->setup_idle_id = g_idle_add (setup_monitor_idle_cb, global);
     return TRUE;
 }
 
@@ -941,7 +963,9 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
                 gtk_widget_set_size_request (global->monitor[i]->status, 8, sys_h - 6);
             }
             for (int d = 0; d < 2; d++)
-                gtk_widget_set_size_request (global->net.status[d], 8, net_h - 6);
+                gtk_widget_set_size_request (global->net.status[d],
+                                             (gint) systemload_config_get_net_bar_width (global->config),
+                                             net_h - 6);
         }
         else
         {
@@ -1300,21 +1324,35 @@ monitor_create_options(XfcePanelPlugin *plugin, t_global_monitor *global)
         gtk_grid_attach (GTK_GRID (grid), combo, 1, row, 1, 1);
         row++;
 
-        /* optional caption for the network section (empty = no label) */
-        entry = gtk_entry_new ();
+        /* the device name is taken from the active interface; toggle only */
         {
-            gchar *lbl = NULL;
-            g_object_get (G_OBJECT (config), "net-label", &lbl, NULL);
-            gtk_entry_set_text (GTK_ENTRY (entry), lbl ? lbl : "");
-            g_free (lbl);
+            GtkWidget *check = gtk_check_button_new_with_label (_("Show device name"));
+            g_object_bind_property (G_OBJECT (config), "net-show-label",
+                                    G_OBJECT (check), "active",
+                                    GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
+            gtk_grid_attach (GTK_GRID (grid), check, 1, row, 1, 1);
+            row++;
         }
-        gtk_widget_set_tooltip_text (entry, _("Leave empty to disable the label"));
-        g_object_bind_property (G_OBJECT (config), "net-label",
-                                G_OBJECT (entry), "text",
-                                GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
-        gtk_grid_attach (GTK_GRID (grid), gtk_label_new (_("Label:")), 0, row, 1, 1);
-        gtk_grid_attach (GTK_GRID (grid), entry, 1, row, 1, 1);
-        row++;
+
+        /* show rate values */
+        {
+            GtkWidget *check = gtk_check_button_new_with_label (_("Show values"));
+            g_object_bind_property (G_OBJECT (config), "net-show-values",
+                                    G_OBJECT (check), "active",
+                                    GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
+            gtk_grid_attach (GTK_GRID (grid), check, 1, row, 1, 1);
+            row++;
+        }
+
+        /* values as bits (Kb) instead of bytes (K) */
+        {
+            GtkWidget *check = gtk_check_button_new_with_label (_("Values as bits"));
+            g_object_bind_property (G_OBJECT (config), "net-as-bits",
+                                    G_OBJECT (check), "active",
+                                    GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
+            gtk_grid_attach (GTK_GRID (grid), check, 1, row, 1, 1);
+            row++;
+        }
 
         /* bar thickness */
         {
@@ -1327,13 +1365,14 @@ monitor_create_options(XfcePanelPlugin *plugin, t_global_monitor *global)
             row++;
         }
 
-        /* show byte/s values */
+        /* gap between the bars and values */
         {
-            GtkWidget *check = gtk_check_button_new_with_label (_("Show values"));
-            g_object_bind_property (G_OBJECT (config), "net-show-values",
-                                    G_OBJECT (check), "active",
+            GtkWidget *spin = gtk_spin_button_new_with_range (0, 16, 1);
+            g_object_bind_property (G_OBJECT (config), "net-bar-spacing",
+                                    G_OBJECT (spin), "value",
                                     GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
-            gtk_grid_attach (GTK_GRID (grid), check, 1, row, 1, 1);
+            gtk_grid_attach (GTK_GRID (grid), gtk_label_new (_("Bar spacing:")), 0, row, 1, 1);
+            gtk_grid_attach (GTK_GRID (grid), spin, 1, row, 1, 1);
             row++;
         }
 

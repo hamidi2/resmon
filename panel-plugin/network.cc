@@ -293,6 +293,34 @@ read_net_rates (NetSource source, const gchar *device, NetData *net)
 /* ------------------------------------------------------------------ */
 /* human readable rates (netload format_byte_humanreadable, bytes/s)   */
 
+/* short panel format: one decimal + single unit letter.
+ * bytes: "733.2K", "1.1M"; bits: "5.9Mb", "1.2Gb" */
+gchar *
+format_rate_short (gulong bytes_per_sec, gboolean as_bits)
+{
+    char buf[32];
+
+    if (as_bits)
+    {
+        gdouble v = (gdouble) bytes_per_sec * 8.0 / 1000.0;  /* kbit */
+        const char *unit = "K";
+        if (v >= 1000.0) { v /= 1000.0; unit = "M"; }
+        if (v >= 1000.0) { v /= 1000.0; unit = "G"; }
+        if (v >= 1000.0) { v /= 1000.0; unit = "T"; }
+        g_snprintf (buf, sizeof (buf), "%.1f%sb", v, unit);
+    }
+    else
+    {
+        gdouble v = (gdouble) bytes_per_sec / 1024.0;  /* KiB */
+        const char *unit = "K";
+        if (v >= 1024.0) { v /= 1024.0; unit = "M"; }
+        if (v >= 1024.0) { v /= 1024.0; unit = "G"; }
+        if (v >= 1024.0) { v /= 1024.0; unit = "T"; }
+        g_snprintf (buf, sizeof (buf), "%.1f%s", v, unit);
+    }
+    return g_strdup (buf);
+}
+
 gchar *
 format_rate_humanreadable (gulong bytes_per_sec, int digits)
 {

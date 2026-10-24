@@ -41,6 +41,9 @@ gint read_net_rates (NetSource source, const gchar *device, NetData *net);
 /* netload's format_byte_humanreadable (bytes/s, "KiB/s" style units). */
 gchar *format_rate_humanreadable (gulong bytes_per_sec, int digits);
 
+/* compact panel format: "733.2K" (bytes) / "5.9Mb" (bits) */
+gchar *format_rate_short (gulong bytes_per_sec, gboolean as_bits);
+
 /* The device of the default route with the lowest metric, or NULL. */
 gchar *find_default_route_device (void);
 

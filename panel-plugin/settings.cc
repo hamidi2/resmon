@@ -70,8 +70,8 @@ static const gchar *const DEFAULT_COLOR[] = {
 #define DEFAULT_NET_DEVICE    ""
 #define DEFAULT_NET_SOURCE    NET_SOURCE_AUTO
 #define DEFAULT_NET_DIGITS    2
-#define DEFAULT_NET_LABEL     ""
 #define DEFAULT_NET_BAR_WIDTH 8
+#define DEFAULT_NET_BAR_SPACING 4
 
 
 
@@ -117,8 +117,10 @@ struct _SystemloadConfig {
   GdkRGBA          net_color_out;
   bool             net_show_values;
   gint             net_digits;
-  gchar           *net_label;
+  bool             net_show_label;
+  bool             net_as_bits;
   guint            net_bar_width;
+  guint            net_bar_spacing;
 };
 
 enum SystemloadProperty {
@@ -149,8 +151,10 @@ enum SystemloadProperty {
     PROP_NET_COLOR_IN,
     PROP_NET_COLOR_OUT,
     PROP_NET_SHOW_VALUES,
-    PROP_NET_LABEL,
+    PROP_NET_SHOW_LABEL,
+    PROP_NET_AS_BITS,
     PROP_NET_BAR_WIDTH,
+    PROP_NET_BAR_SPACING,
     N_PROPERTIES,
 };
 
@@ -406,15 +410,27 @@ systemload_config_class_init (SystemloadConfigClass *klass)
                                                          GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class,
-                                   PROP_NET_LABEL,
-                                   g_param_spec_string ("net-label", NULL, NULL,
-                                                        DEFAULT_NET_LABEL,
-                                                        GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+                                   PROP_NET_SHOW_LABEL,
+                                   g_param_spec_boolean ("net-show-label", NULL, NULL,
+                                                         FALSE,
+                                                         GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class,
+                                   PROP_NET_AS_BITS,
+                                   g_param_spec_boolean ("net-as-bits", NULL, NULL,
+                                                         FALSE,
+                                                         GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   g_object_class_install_property (gobject_class,
                                    PROP_NET_BAR_WIDTH,
                                    g_param_spec_uint ("net-bar-width", NULL, NULL,
                                                       4, 24, DEFAULT_NET_BAR_WIDTH,
+                                                      GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class,
+                                   PROP_NET_BAR_SPACING,
+                                   g_param_spec_uint ("net-bar-spacing", NULL, NULL,
+                                                      0, 16, DEFAULT_NET_BAR_SPACING,
                                                       GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   systemload_config_signals[CONFIGURATION_CHANGED] =
@@ -450,8 +466,10 @@ systemload_config_init (SystemloadConfig *config)
   gdk_rgba_parse (&config->net_color_out, DEFAULT_NET_COLOR_OUT);
   config->net_show_values = true;
   config->net_digits = DEFAULT_NET_DIGITS;
-  config->net_label = g_strdup (DEFAULT_NET_LABEL);
+  config->net_show_label = false;
+  config->net_as_bits = false;
   config->net_bar_width = DEFAULT_NET_BAR_WIDTH;
+  config->net_bar_spacing = DEFAULT_NET_BAR_SPACING;
 }
 
 
@@ -465,7 +483,6 @@ systemload_config_finalize (GObject *object)
   g_free (config->property_base);
   g_free (config->system_monitor_command);
   g_free (config->net_device);
-  g_free (config->net_label);
   for (gsize i = 0; i < G_N_ELEMENTS (config->monitor); i++)
     g_free (config->monitor[i].label);
 
@@ -553,12 +570,20 @@ systemload_config_get_property (GObject    *object,
       g_value_set_boolean (value, config->net_show_values);
       break;
 
-    case PROP_NET_LABEL:
-      g_value_set_string (value, config->net_label);
+    case PROP_NET_SHOW_LABEL:
+      g_value_set_boolean (value, config->net_show_label);
+      break;
+
+    case PROP_NET_AS_BITS:
+      g_value_set_boolean (value, config->net_as_bits);
       break;
 
     case PROP_NET_BAR_WIDTH:
       g_value_set_uint (value, config->net_bar_width);
+      break;
+
+    case PROP_NET_BAR_SPACING:
+      g_value_set_uint (value, config->net_bar_spacing);
       break;
 
     default:
@@ -833,7 +858,6 @@ systemload_config_set_property (GObject      *object,
       if (g_strcmp0 (config->net_device, val_string) != 0)
         {
           g_free (config->net_device);
-  g_free (config->net_label);
           config->net_device = g_value_dup_string (value);
           g_object_notify (G_OBJECT (config), "net-device");
           g_signal_emit (G_OBJECT (config), systemload_config_signals [CONFIGURATION_CHANGED], 0);
@@ -884,13 +908,22 @@ systemload_config_set_property (GObject      *object,
         }
       break;
 
-    case PROP_NET_LABEL:
-      val_string = g_value_get_string (value);
-      if (g_strcmp0 (config->net_label, val_string) != 0)
+    case PROP_NET_SHOW_LABEL:
+      val_bool = g_value_get_boolean (value);
+      if (config->net_show_label != val_bool)
         {
-          g_free (config->net_label);
-          config->net_label = g_value_dup_string (value);
-          g_object_notify (G_OBJECT (config), "net-label");
+          config->net_show_label = val_bool;
+          g_object_notify (G_OBJECT (config), "net-show-label");
+          g_signal_emit (G_OBJECT (config), systemload_config_signals [CONFIGURATION_CHANGED], 0);
+        }
+      break;
+
+    case PROP_NET_AS_BITS:
+      val_bool = g_value_get_boolean (value);
+      if (config->net_as_bits != val_bool)
+        {
+          config->net_as_bits = val_bool;
+          g_object_notify (G_OBJECT (config), "net-as-bits");
           g_signal_emit (G_OBJECT (config), systemload_config_signals [CONFIGURATION_CHANGED], 0);
         }
       break;
@@ -901,6 +934,16 @@ systemload_config_set_property (GObject      *object,
         {
           config->net_bar_width = val_uint;
           g_object_notify (G_OBJECT (config), "net-bar-width");
+          g_signal_emit (G_OBJECT (config), systemload_config_signals [CONFIGURATION_CHANGED], 0);
+        }
+      break;
+
+    case PROP_NET_BAR_SPACING:
+      val_uint = g_value_get_uint (value);
+      if (config->net_bar_spacing != val_uint)
+        {
+          config->net_bar_spacing = val_uint;
+          g_object_notify (G_OBJECT (config), "net-bar-spacing");
           g_signal_emit (G_OBJECT (config), systemload_config_signals [CONFIGURATION_CHANGED], 0);
         }
       break;
@@ -1058,12 +1101,20 @@ systemload_config_get_net_digits (const SystemloadConfig *config)
   return config->net_digits;
 }
 
-const gchar *
-systemload_config_get_net_label (const SystemloadConfig *config)
+bool
+systemload_config_get_net_show_label (const SystemloadConfig *config)
 {
-  g_return_val_if_fail (IS_SYSTEMLOAD_CONFIG (config), DEFAULT_NET_LABEL);
+  g_return_val_if_fail (IS_SYSTEMLOAD_CONFIG (config), false);
 
-  return config->net_label;
+  return config->net_show_label;
+}
+
+bool
+systemload_config_get_net_as_bits (const SystemloadConfig *config)
+{
+  g_return_val_if_fail (IS_SYSTEMLOAD_CONFIG (config), false);
+
+  return config->net_as_bits;
 }
 
 guint
@@ -1072,6 +1123,14 @@ systemload_config_get_net_bar_width (const SystemloadConfig *config)
   g_return_val_if_fail (IS_SYSTEMLOAD_CONFIG (config), DEFAULT_NET_BAR_WIDTH);
 
   return config->net_bar_width;
+}
+
+guint
+systemload_config_get_net_bar_spacing (const SystemloadConfig *config)
+{
+  g_return_val_if_fail (IS_SYSTEMLOAD_CONFIG (config), DEFAULT_NET_BAR_SPACING);
+
+  return config->net_bar_spacing;
 }
 
 
@@ -1195,12 +1254,20 @@ systemload_config_new (const gchar *property_base)
       xfconf_g_property_bind (channel, property, G_TYPE_BOOLEAN, config, "net-show-values");
       g_free (property);
 
-      property = g_strconcat (property_base, "/network/label", NULL);
-      xfconf_g_property_bind (channel, property, G_TYPE_STRING, config, "net-label");
+      property = g_strconcat (property_base, "/network/show-label", NULL);
+      xfconf_g_property_bind (channel, property, G_TYPE_BOOLEAN, config, "net-show-label");
+      g_free (property);
+
+      property = g_strconcat (property_base, "/network/as-bits", NULL);
+      xfconf_g_property_bind (channel, property, G_TYPE_BOOLEAN, config, "net-as-bits");
       g_free (property);
 
       property = g_strconcat (property_base, "/network/bar-width", NULL);
       xfconf_g_property_bind (channel, property, G_TYPE_UINT, config, "net-bar-width");
+      g_free (property);
+
+      property = g_strconcat (property_base, "/network/bar-spacing", NULL);
+      xfconf_g_property_bind (channel, property, G_TYPE_UINT, config, "net-bar-spacing");
       g_free (property);
     }
 
