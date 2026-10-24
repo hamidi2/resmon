@@ -815,14 +815,12 @@ setup_monitors(t_global_monitor *global)
 
             gtk_widget_show_all(GTK_WIDGET(m->ebox));
             gtk_widget_set_visible (m->label, label_visible);
-            set_margin (global, m->ebox, 6);
         }
     }
 
     if (systemload_config_get_uptime_enabled (config))
     {
         gtk_widget_show_all (global->uptime.ebox);
-        set_margin (global, global->uptime.ebox, (n_enabled == 0) ? 0 : 6);
     }
 
     /* resmon network section: visibility + colors + layout */
@@ -845,21 +843,36 @@ setup_monitors(t_global_monitor *global)
 
         gtk_widget_set_visible (net->label, net_label_visible);
 
-        /* value<->bar gap mirrors the text's own number-unit space */
+        /* value<->bar gap = twice the text's own number-unit space */
         {
             PangoLayout *pl = gtk_widget_create_pango_layout (net->value_label[0], "0 0");
             PangoLayout *pr = gtk_widget_create_pango_layout (net->value_label[0], "00");
             gint wl = 0, wr = 0;
             pango_layout_get_pixel_size (pl, &wl, NULL);
             pango_layout_get_pixel_size (pr, &wr, NULL);
-            gtk_box_set_spacing (GTK_BOX (net->box), MAX (wl - wr, 1));
+            gtk_box_set_spacing (GTK_BOX (net->box), MAX (2 * (wl - wr), 2));
             g_object_unref (pl);
             g_object_unref (pr);
         }
 
-        /* same 6px breathing room as the sysload monitors (stock look) */
+        /* lock the value labels to the widest possible text so the applet
+         * width (and the centered sysload row above) never moves */
+        {
+            const gchar *samples[] = { "888.8 K", "888.8 Kb", NULL };
+            gint wmax = 0;
+            for (const gchar **t = samples; *t != NULL; t++)
+            {
+                PangoLayout *pl = gtk_widget_create_pango_layout (net->value_label[0], *t);
+                gint w = 0;
+                pango_layout_get_pixel_size (pl, &w, NULL);
+                wmax = MAX (wmax, w);
+                g_object_unref (pl);
+            }
+            for (int d = 0; d < 2; d++)
+                gtk_widget_set_size_request (net->value_label[d], wmax, -1);
+        }
+
         gtk_widget_show (net->ebox);
-        set_margin (global, net->ebox, 6);
     }
     else
         gtk_widget_hide (global->net.ebox);
@@ -931,10 +944,9 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
                 gtk_widget_set_size_request (global->net.status[d], -1, bar_w);
         }
 
-        /* same gap everywhere: space between sysload monitors and inside
-         * the network section both follow "Bar spacing" (>=2 so bars never
-         * visually merge) */
-        gint spacing = MAX ((gint) systemload_config_get_net_bar_spacing (global->config), 2);
+        /* ONE gap system, exact value from "Bar spacing" (0 allowed):
+         * between sysload monitors and between the network bars */
+        gint spacing = (gint) systemload_config_get_net_bar_spacing (global->config);
         for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
         {
             if ((SystemloadMonitor) i == NET_MONITOR)
@@ -944,6 +956,7 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         }
         gtk_widget_set_margin_end (global->uptime.ebox, spacing);
         gtk_widget_set_margin_start (global->uptime.ebox, 0);
+        gtk_widget_set_margin_start (global->net.ebox, 0);
         gtk_box_set_spacing (GTK_BOX (global->net.bars_box), spacing);
     }
 
