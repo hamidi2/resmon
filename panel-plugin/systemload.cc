@@ -355,8 +355,10 @@ update_net_layout (t_global_monitor *global)
     gtk_orientable_set_orientation (GTK_ORIENTABLE (global->outer),
                                     vertical_stack ? GTK_ORIENTATION_VERTICAL
                                                    : GTK_ORIENTATION_HORIZONTAL);
-    /* stacked: center the sysload row over the (wider) network row */
+    /* stacked: center BOTH the sysload row and the network content */
     gtk_widget_set_halign (global->box,
+                           vertical_stack ? GTK_ALIGN_CENTER : GTK_ALIGN_FILL);
+    gtk_widget_set_halign (global->net.box,
                            vertical_stack ? GTK_ALIGN_CENTER : GTK_ALIGN_FILL);
 
     /* detach both children from any previous parent (hold refs across the
@@ -843,10 +845,17 @@ setup_monitors(t_global_monitor *global)
 
         gtk_widget_set_visible (net->label, net_label_visible);
 
-        /* gaps between bars/values follow "Bar spacing" (applied in
-         * monitor_set_size so all bars share one system) */
-        gint spacing = (gint) systemload_config_get_net_bar_spacing (config);
-        gtk_box_set_spacing (GTK_BOX (net->box), spacing);
+        /* value<->bar gap mirrors the text's own number-unit space */
+        {
+            PangoLayout *pl = gtk_widget_create_pango_layout (net->value_label[0], "0 0");
+            PangoLayout *pr = gtk_widget_create_pango_layout (net->value_label[0], "00");
+            gint wl = 0, wr = 0;
+            pango_layout_get_pixel_size (pl, &wl, NULL);
+            pango_layout_get_pixel_size (pr, &wr, NULL);
+            gtk_box_set_spacing (GTK_BOX (net->box), MAX (wl - wr, 1));
+            g_object_unref (pl);
+            g_object_unref (pr);
+        }
 
         /* same 6px breathing room as the sysload monitors (stock look) */
         gtk_widget_show (net->ebox);
@@ -935,6 +944,7 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         }
         gtk_widget_set_margin_end (global->uptime.ebox, spacing);
         gtk_widget_set_margin_start (global->uptime.ebox, 0);
+        gtk_box_set_spacing (GTK_BOX (global->net.bars_box), spacing);
     }
 
     /* height share between the sysload part and the network section:
@@ -975,6 +985,7 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
             net_h = total;
         }
 
+        gint bar_w2 = (gint) systemload_config_get_net_bar_width (global->config);
         if (xfce_panel_plugin_get_orientation (plugin) == GTK_ORIENTATION_HORIZONTAL)
         {
             gtk_widget_set_size_request (global->ebox, -1, total);
@@ -984,12 +995,10 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
             {
                 if ((SystemloadMonitor) i == NET_MONITOR)
                     continue;
-                gtk_widget_set_size_request (global->monitor[i]->status, 8, sys_h - 6);
+                gtk_widget_set_size_request (global->monitor[i]->status, bar_w2, sys_h - 6);
             }
             for (int d = 0; d < 2; d++)
-                gtk_widget_set_size_request (global->net.status[d],
-                                             (gint) systemload_config_get_net_bar_width (global->config),
-                                             net_h - 6);
+                gtk_widget_set_size_request (global->net.status[d], bar_w2, net_h - 6);
         }
         else
         {
@@ -1000,7 +1009,7 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
             {
                 if ((SystemloadMonitor) i == NET_MONITOR)
                     continue;
-                gtk_widget_set_size_request (global->monitor[i]->status, sys_h - 6, 8);
+                gtk_widget_set_size_request (global->monitor[i]->status, sys_h - 6, bar_w2);
             }
             for (int d = 0; d < 2; d++)
                 gtk_widget_set_size_request (global->net.status[d],
