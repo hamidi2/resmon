@@ -1307,30 +1307,46 @@ monitor_create_options(XfcePanelPlugin *plugin, t_global_monitor *global)
     gtk_grid_attach (GTK_GRID (grid), entry, 1, 3, 1, 1);
     label = new_label (GTK_GRID (grid), 3, _("System monitor:"), entry);
 
-    /* Add options for the monitors */
-    for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+    /* Add options for the monitors (the network monitor has its own
+     * section below; uptime follows the other monitors) */
     {
-        const SystemloadMonitor monitor = VISUAL_ORDER[i];
-        new_monitor_setting (global, GTK_GRID(grid), 4 + 2 * i,
-                             _(FRAME_TEXT[monitor]),
-                             true,
-                             SETTING_TEXT[monitor]);
-    }
+        guint row = 4;
+        for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+        {
+            const SystemloadMonitor monitor = VISUAL_ORDER[i];
+            if (monitor == NET_MONITOR)
+                continue;
+            new_monitor_setting (global, GTK_GRID(grid), row,
+                                 _(FRAME_TEXT[monitor]),
+                                 true,
+                                 SETTING_TEXT[monitor]);
+            row += 2;
+        }
 
-    /* Uptime monitor options */
-    new_monitor_setting (global, GTK_GRID(grid), 4 + 2*G_N_ELEMENTS (global->monitor),
-                         _(FRAME_TEXT[4]), FALSE, "uptime");
+        /* Uptime monitor options */
+        new_monitor_setting (global, GTK_GRID(grid), row,
+                             _(FRAME_TEXT[4]), FALSE, "uptime");
+        row += 2;
 
     /* resmon network section options */
     {
-        guint row = 4 + 2*G_N_ELEMENTS (global->monitor) + 2;
         GtkWidget *combo;
 
         label = gtk_label_new (NULL);
-        gtk_label_set_markup (GTK_LABEL (label), _("<b>Network traffic</b>"));
+        gtk_label_set_markup (GTK_LABEL (label), _("<b>Network monitor</b>"));
         gtk_widget_set_halign(label, GTK_ALIGN_START);
         gtk_grid_attach (GTK_GRID (grid), label, 0, row, 1, 1);
         row++;
+
+        /* enable/disable the whole network section */
+        {
+            GtkWidget *check = gtk_check_button_new_with_label (_("Show network monitor"));
+            g_object_bind_property (G_OBJECT (config), "network-enabled",
+                                    G_OBJECT (check), "active",
+                                    GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
+            gtk_grid_attach (GTK_GRID (grid), check, 1, row, 1, 1);
+            row++;
+        }
 
         /* traffic source */
         combo = gtk_combo_box_text_new ();
@@ -1459,6 +1475,7 @@ monitor_create_options(XfcePanelPlugin *plugin, t_global_monitor *global)
             gtk_grid_attach (GTK_GRID (grid), hbox, 1, row, 1, 1);
         }
         row++;
+    }
     }
 
     gtk_widget_show_all (dlg);

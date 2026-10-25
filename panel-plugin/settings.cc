@@ -61,7 +61,7 @@ static const gchar *const DEFAULT_COLOR[] = {
     "#1c71d8", /* CPU */
     "#2ec27e", /* MEM */
     "#e66100", /* NET */
-    "#f5c211", /* SWAP */
+    "#9141ac", /* SWAP - purple; the old yellow was too close to the upload bar */
 };
 
 /* resmon network section defaults (netload's user colors) */
