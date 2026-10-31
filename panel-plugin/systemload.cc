@@ -108,6 +108,7 @@ struct t_global_monitor {
     bool              use_timeout_seconds;
     guint             timeout_id;
     guint             setup_idle_id;
+    gint              label_gap;   /* text-space metric shared by both rows */
     t_command         command;
     t_monitor         *monitor[4];
     t_uptime_monitor  uptime;
@@ -850,7 +851,8 @@ setup_monitors(t_global_monitor *global)
             gint wl = 0, wr = 0;
             pango_layout_get_pixel_size (pl, &wl, NULL);
             pango_layout_get_pixel_size (pr, &wr, NULL);
-            gtk_box_set_spacing (GTK_BOX (net->box), MAX (2 * (wl - wr), 2));
+            global->label_gap = MAX (wl - wr, 1);
+            gtk_box_set_spacing (GTK_BOX (net->box), global->label_gap);
             g_object_unref (pl);
             g_object_unref (pr);
         }
@@ -999,6 +1001,18 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         }
 
         gint bar_w2 = (gint) systemload_config_get_net_bar_width (global->config);
+        /* label->bar gap identical to the network row's number->bar gap */
+        for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+        {
+            if ((SystemloadMonitor) i == NET_MONITOR)
+                continue;
+            gtk_box_set_spacing (GTK_BOX (global->monitor[i]->box), global->label_gap);
+        }
+        {
+            GtkWidget *up_parent = gtk_widget_get_parent (global->uptime.label);
+            if (GTK_IS_BOX (up_parent))
+                gtk_box_set_spacing (GTK_BOX (up_parent), global->label_gap);
+        }
         if (xfce_panel_plugin_get_orientation (plugin) == GTK_ORIENTATION_HORIZONTAL)
         {
             gtk_widget_set_size_request (global->ebox, -1, total);
