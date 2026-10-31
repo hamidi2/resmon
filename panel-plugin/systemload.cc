@@ -950,16 +950,10 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         /* ONE gap system, exact value from "Bar spacing" (0 allowed):
          * between sysload monitors and between the network bars */
         gint spacing = (gint) systemload_config_get_net_bar_spacing (global->config);
-        for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
-        {
-            if ((SystemloadMonitor) i == NET_MONITOR)
-                continue;
-            gtk_widget_set_margin_end (global->monitor[i]->ebox, spacing);
-            gtk_widget_set_margin_start (global->monitor[i]->ebox, 0);
-        }
-        gtk_widget_set_margin_end (global->uptime.ebox, spacing);
-        gtk_widget_set_margin_start (global->uptime.ebox, 0);
-        gtk_widget_set_margin_start (global->net.ebox, 0);
+        /* GtkBox spacing separates only ADJACENT VISIBLE children: the
+         * uptime gap appears exactly when uptime is shown, and no trailing
+         * gap remains when it is hidden */
+        gtk_box_set_spacing (GTK_BOX (global->box), spacing);
         gtk_box_set_spacing (GTK_BOX (global->net.bars_box), spacing);
     }
 
