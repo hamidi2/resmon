@@ -84,5 +84,6 @@ bool               systemload_config_get_net_show_label (const SystemloadConfig 
 bool               systemload_config_get_net_as_bits    (const SystemloadConfig *config);
 guint              systemload_config_get_net_bar_width  (const SystemloadConfig *config);
 guint              systemload_config_get_net_bar_spacing(const SystemloadConfig *config);
+guint              systemload_config_get_text_gap       (const SystemloadConfig *config);
 
 #endif /* _XFCE_SYSTEMLOAD_SETTINGS_H_ */

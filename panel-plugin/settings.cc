@@ -72,6 +72,7 @@ static const gchar *const DEFAULT_COLOR[] = {
 #define DEFAULT_NET_DIGITS    2
 #define DEFAULT_NET_BAR_WIDTH 8
 #define DEFAULT_NET_BAR_SPACING 4
+#define DEFAULT_TEXT_GAP 6
 
 
 
@@ -121,6 +122,7 @@ struct _SystemloadConfig {
   bool             net_as_bits;
   guint            net_bar_width;
   guint            net_bar_spacing;
+  guint            text_gap;
 };
 
 enum SystemloadProperty {
@@ -155,6 +157,7 @@ enum SystemloadProperty {
     PROP_NET_AS_BITS,
     PROP_NET_BAR_WIDTH,
     PROP_NET_BAR_SPACING,
+    PROP_TEXT_GAP,
     N_PROPERTIES,
 };
 
@@ -433,6 +436,12 @@ systemload_config_class_init (SystemloadConfigClass *klass)
                                                       0, 16, DEFAULT_NET_BAR_SPACING,
                                                       GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class,
+                                   PROP_TEXT_GAP,
+                                   g_param_spec_uint ("text-gap", NULL, NULL,
+                                                      0, 16, DEFAULT_TEXT_GAP,
+                                                      GParamFlags (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   systemload_config_signals[CONFIGURATION_CHANGED] =
     g_signal_new (g_intern_static_string ("configuration-changed"),
                   G_TYPE_FROM_CLASS (gobject_class),
@@ -470,6 +479,7 @@ systemload_config_init (SystemloadConfig *config)
   config->net_as_bits = false;
   config->net_bar_width = DEFAULT_NET_BAR_WIDTH;
   config->net_bar_spacing = DEFAULT_NET_BAR_SPACING;
+  config->text_gap = DEFAULT_TEXT_GAP;
 }
 
 
@@ -584,6 +594,10 @@ systemload_config_get_property (GObject    *object,
 
     case PROP_NET_BAR_SPACING:
       g_value_set_uint (value, config->net_bar_spacing);
+      break;
+
+    case PROP_TEXT_GAP:
+      g_value_set_uint (value, config->text_gap);
       break;
 
     default:
@@ -948,6 +962,16 @@ systemload_config_set_property (GObject      *object,
         }
       break;
 
+    case PROP_TEXT_GAP:
+      val_uint = g_value_get_uint (value);
+      if (config->text_gap != val_uint)
+        {
+          config->text_gap = val_uint;
+          g_object_notify (G_OBJECT (config), "text-gap");
+          g_signal_emit (G_OBJECT (config), systemload_config_signals [CONFIGURATION_CHANGED], 0);
+        }
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1133,6 +1157,14 @@ systemload_config_get_net_bar_spacing (const SystemloadConfig *config)
   return config->net_bar_spacing;
 }
 
+guint
+systemload_config_get_text_gap (const SystemloadConfig *config)
+{
+  g_return_val_if_fail (IS_SYSTEMLOAD_CONFIG (config), DEFAULT_TEXT_GAP);
+
+  return config->text_gap;
+}
+
 
 
 SystemloadConfig *
@@ -1268,6 +1300,10 @@ systemload_config_new (const gchar *property_base)
 
       property = g_strconcat (property_base, "/network/bar-spacing", NULL);
       xfconf_g_property_bind (channel, property, G_TYPE_UINT, config, "net-bar-spacing");
+      g_free (property);
+
+      property = g_strconcat (property_base, "/network/text-gap", NULL);
+      xfconf_g_property_bind (channel, property, G_TYPE_UINT, config, "text-gap");
       g_free (property);
     }
 

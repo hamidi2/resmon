@@ -108,7 +108,6 @@ struct t_global_monitor {
     bool              use_timeout_seconds;
     guint             timeout_id;
     guint             setup_idle_id;
-    gint              text_gap;   /* width of the "19.0 K" number-unit space */
     t_command         command;
     t_monitor         *monitor[4];
     t_uptime_monitor  uptime;
@@ -844,19 +843,9 @@ setup_monitors(t_global_monitor *global)
 
         gtk_widget_set_visible (net->label, net_label_visible);
 
-        /* text<->bar gap = the width of the number-unit space itself
-         * (the same gap as between "19.0" and "K") */
-        {
-            PangoLayout *pl = gtk_widget_create_pango_layout (net->value_label[0], "0 0");
-            PangoLayout *pr = gtk_widget_create_pango_layout (net->value_label[0], "00");
-            gint wl = 0, wr = 0;
-            pango_layout_get_pixel_size (pl, &wl, NULL);
-            pango_layout_get_pixel_size (pr, &wr, NULL);
-            global->text_gap = MAX (wl - wr, 1);
-            gtk_box_set_spacing (GTK_BOX (net->box), global->text_gap);
-            g_object_unref (pl);
-            g_object_unref (pr);
-        }
+        /* text<->bar gap: fixed, user-settable ("Text spacing") */
+        gtk_box_set_spacing (GTK_BOX (net->box),
+                             (gint) systemload_config_get_text_gap (config));
 
         /* lock the value labels to the widest possible text so the applet
          * width (and the centered sysload row above) never moves */
@@ -1001,12 +990,14 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         {
             if ((SystemloadMonitor) i == NET_MONITOR)
                 continue;
-            gtk_box_set_spacing (GTK_BOX (global->monitor[i]->box), global->text_gap);
+            gtk_box_set_spacing (GTK_BOX (global->monitor[i]->box),
+                                 (gint) systemload_config_get_text_gap (global->config));
         }
         {
             GtkWidget *up_parent = gtk_widget_get_parent (global->uptime.label);
             if (GTK_IS_BOX (up_parent))
-                gtk_box_set_spacing (GTK_BOX (up_parent), global->text_gap);
+                gtk_box_set_spacing (GTK_BOX (up_parent),
+                                     (gint) systemload_config_get_text_gap (global->config));
         }
         if (xfce_panel_plugin_get_orientation (plugin) == GTK_ORIENTATION_HORIZONTAL)
         {
@@ -1432,6 +1423,17 @@ monitor_create_options(XfcePanelPlugin *plugin, t_global_monitor *global)
                                     G_OBJECT (spin), "value",
                                     GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
             gtk_grid_attach (GTK_GRID (grid), gtk_label_new (_("Bar width:")), 0, row, 1, 1);
+            gtk_grid_attach (GTK_GRID (grid), spin, 1, row, 1, 1);
+            row++;
+        }
+
+        /* gap between texts (labels/values) and the bars */
+        {
+            GtkWidget *spin = gtk_spin_button_new_with_range (0, 16, 1);
+            g_object_bind_property (G_OBJECT (config), "text-gap",
+                                    G_OBJECT (spin), "value",
+                                    GBindingFlags (G_BINDING_SYNC_CREATE | G_BINDING_BIDIRECTIONAL));
+            gtk_grid_attach (GTK_GRID (grid), gtk_label_new (_("Text spacing:")), 0, row, 1, 1);
             gtk_grid_attach (GTK_GRID (grid), spin, 1, row, 1, 1);
             row++;
         }
