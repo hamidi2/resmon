@@ -871,6 +871,39 @@ setup_monitors(t_global_monitor *global)
 
     update_net_layout (global);
 
+    /* sysload row gaps via explicit margins (box spacing cannot give the
+     * uptime boundary its own value): Bar spacing between adjacent visible
+     * monitors, Text spacing between the last bar and uptime - and zero
+     * trailing margin when uptime is hidden */
+    {
+        gint bar_gap = (gint) systemload_config_get_net_bar_spacing (global->config);
+        gint text_gap = (gint) systemload_config_get_text_gap (global->config);
+        gint last_visible = -1;
+        for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+        {
+            if ((SystemloadMonitor) i == NET_MONITOR)
+                continue;
+            if (gtk_widget_get_visible (global->monitor[i]->ebox))
+                last_visible = (gint) i;
+        }
+        if (systemload_config_get_uptime_enabled (global->config)
+            && gtk_widget_get_visible (global->uptime.ebox))
+            gtk_widget_set_margin_start (global->uptime.ebox, text_gap);
+        else
+            gtk_widget_set_margin_start (global->uptime.ebox, 0);
+        gtk_widget_set_margin_end (global->uptime.ebox, 0);
+
+        for(gsize i = 0; i < G_N_ELEMENTS (global->monitor); i++)
+        {
+            if ((SystemloadMonitor) i == NET_MONITOR)
+                continue;
+            gboolean is_last = ((gint) i == last_visible);
+            gtk_widget_set_margin_end (global->monitor[i]->ebox,
+                                       is_last ? 0 : bar_gap);
+            gtk_widget_set_margin_start (global->monitor[i]->ebox, 0);
+        }
+    }
+
     setup_timer (global);
 }
 
@@ -939,12 +972,9 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         /* ONE gap system, exact value from "Bar spacing" (0 allowed):
          * between sysload monitors and between the network bars */
         gint spacing = (gint) systemload_config_get_net_bar_spacing (global->config);
-        /* GtkBox spacing separates only ADJACENT VISIBLE children: the
-         * uptime gap appears exactly when uptime is shown, and no trailing
-         * gap remains when it is hidden */
-        gtk_box_set_spacing (GTK_BOX (global->box), spacing);
         gtk_box_set_spacing (GTK_BOX (global->net.bars_box), spacing);
     }
+
 
     /* height share between the sysload part and the network section:
      * side-by-side = both span the full panel height (netload-like);
@@ -995,9 +1025,7 @@ monitor_set_size(XfcePanelPlugin *plugin, int size, t_global_monitor *global)
         }
         {
             GtkWidget *up_parent = gtk_widget_get_parent (global->uptime.label);
-            if (GTK_IS_BOX (up_parent))
-                gtk_box_set_spacing (GTK_BOX (up_parent),
-                                     (gint) systemload_config_get_text_gap (global->config));
+            (void) up_parent; /* uptime gap is handled with margins in setup_monitors */
         }
         if (xfce_panel_plugin_get_orientation (plugin) == GTK_ORIENTATION_HORIZONTAL)
         {
