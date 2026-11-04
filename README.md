@@ -1,7 +1,8 @@
 # resmon — Resource Monitor for the Xfce Panel
 
 > **Status:** under discussion upstream —
-> [xfce4-systemload-plugin#39](https://gitlab.xfce.org/panel-plugins/xfce4-systemload-plugin/-/work_items/39)
+> [XFCE: xfce4-systemload-plugin#39](https://gitlab.xfce.org/panel-plugins/xfce4-systemload-plugin/-/work_items/39)
+> [Xubuntu Discourse: packaging proposal](https://discourse.ubuntu.com/t/resmon-merged-systemload-netload-applet-packaging-proposal/91030)
 
 A single Xfce panel applet that merges the CPU/memory/swap/uptime monitors of
 [xfce4-systemload-plugin](https://gitlab.xfce.org/panel-plugins/xfce4-systemload-plugin)
