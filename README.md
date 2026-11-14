@@ -60,6 +60,11 @@ or simply:
 
     ./install.sh
 
+Prebuilt package (Xubuntu/Debian/Ubuntu, amd64):
+[resmon_1.0.0-1_amd64.deb](https://github.com/hamidi2/resmon/releases/download/v1.0.0/resmon_1.0.0-1_amd64.deb)
+
+    sudo apt install ./resmon_1.0.0-1_amd64.deb
+
 Then add "Resource Monitor" to the panel (right-click the panel → Panel →
 Add New Items…), restart the panel if it doesn't appear immediately.
 
