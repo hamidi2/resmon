@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "resmon installed. Add 'Resource Monitor' via Panel > Add New Items,"
+echo "then restart the panel if it does not appear immediately."
+#DEBHELPER#

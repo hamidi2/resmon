@@ -1,5 +1,9 @@
 build/
 *.o
 *.so
-*.desktop
 config.h
+panel-plugin/*.desktop
+debian/resmon/
+debian/.debhelper/
+debian/files
+debian/debhelper-build-stamp

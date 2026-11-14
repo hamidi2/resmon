@@ -1,0 +1,28 @@
+Source: resmon
+Section: xfce
+Priority: optional
+Maintainer: hamidi <hamidi@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               meson,
+               libgtk-3-dev,
+               libxfce4panel-2.0-dev,
+               libxfce4ui-2-dev,
+               libxfce4util-dev,
+               libxfconf-0-dev,
+               libupower-glib-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/hamidi2/resmon
+Vcs-Browser: https://github.com/hamidi2/resmon
+Vcs-Git: https://github.com/hamidi2/resmon.git
+
+Package: resmon
+Architecture: amd64
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Suggests: xfce4-panel (>= 4.18)
+Description: Resource Monitor applet for the Xfce panel
+ Merges the CPU/memory/swap/uptime monitors of xfce4-systemload-plugin
+ with a full netload-style network monitor: two bars (download/upload),
+ adaptive Auto_Max scale, byte/bit rates, manual / default-route /
+ sum-of-all traffic sources, configurable layout (below/above/left/right)
+ and spacing.

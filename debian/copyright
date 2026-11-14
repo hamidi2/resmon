@@ -1,0 +1,17 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: resmon
+Source: https://github.com/hamidi2/resmon
+
+Files: *
+Copyright: 2003-2022 the xfce4-systemload-plugin authors (BSD-2-Clause)
+           the xfce4-netload-plugin authors (GPL-2+)
+License: GPL-2+
+ The combined work is distributed as GPL-2.0-or-later; the BSD-licensed
+ systemload-derived parts retain their notice (see COPYING.systemload).
+
+License: GPL-2+
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU General Public License as published by the
+ Free Software Foundation; version 2 or (at your option) any later version.
+ On Debian systems, the complete text of the GNU General Public License
+ version 2 can be found in "/usr/share/common-licenses/GPL-2".

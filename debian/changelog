@@ -1,0 +1,7 @@
+resmon (1.0.0-1) unstable; urgency=medium
+
+  * Initial release.
+  * Merged xfce4-systemload-plugin 1.3.2 monitors + netload-style network
+    monitor (three traffic sources, Auto_Max scale, configurable layout).
+
+ -- hamidi <hamidi@gmail.com>  Sat, 14 Nov 2026 22:40:00 +0330
