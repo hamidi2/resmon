@@ -2,3 +2,9 @@
 
 %:
 	dh $@ --buildsystem=meson
+
+# Upstream tarball ships autotools files with XDT_ macros, so dh_autoreconf
+# tries xdt-autogen (absent on Launchpad builders and minimal chroots).
+# The real build is meson; skip autoreconf entirely.
+override_dh_autoreconf:
+	true
